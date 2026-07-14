@@ -1,0 +1,43 @@
+name: verify-issue-60
+
+# Re-verifies https://github.com/langchain-ai/langchain-upstage/issues/60
+# (streaming tool-call token doubling) against current Solar models.
+# One job per model = fan-out, so each model's report is visible on its own.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [verify/issue-60-token-doubling]
+    paths:
+      - verify_issue_60/**
+      - .github/workflows/verify-issue-60.yml
+
+jobs:
+  verify:
+    name: ${{ matrix.model }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [solar-pro2, solar-pro3, solar-open2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install deps
+        run: pip install requests langchain-upstage langchain
+
+      - name: S1 + S3 — raw SSE (server-level)
+        env:
+          MODEL: ${{ matrix.model }}
+          UPSTAGE_API_KEY: ${{ secrets.UPSTAGE_API_KEY }}
+        run: python verify_issue_60/raw_sse.py
+
+      - name: S2 — langchain ChatUpstage.stream (user-level)
+        env:
+          MODEL: ${{ matrix.model }}
+          UPSTAGE_API_KEY: ${{ secrets.UPSTAGE_API_KEY }}
+        run: python verify_issue_60/langchain_repro.py
